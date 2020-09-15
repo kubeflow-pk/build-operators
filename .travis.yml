@@ -1,0 +1,54 @@
+dist: bionic
+
+env:
+  global:
+    - PYTORCH_OP_CODE_TAG=master
+    - MPI_OP_CODE_TAG=v0.2.3
+    - XGBOOST_OP_CODE_TAG=v0.1.0
+    - MXNET_OP_CODE_TAG=v1.0.0
+    - FATE_OP_CODE_TAG=master
+
+    - REPO_ORG=pkskubeflow
+
+services:
+  - docker
+
+before_install:
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+  - sudo add-apt-repository "deb [arch=${TRAVIS_CPU_ARCH}] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+  - sudo apt-get update
+  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce qemu-user-static
+  - wget https://github.com/docker/buildx/releases/download/v0.4.2/buildx-v0.4.2.linux-${TRAVIS_CPU_ARCH}
+  - chmod a+x buildx-v0.4.2.linux-${TRAVIS_CPU_ARCH}
+  - mkdir -p ~/.docker/cli-plugins
+  - mv buildx-v0.4.2.linux-${TRAVIS_CPU_ARCH} ~/.docker/cli-plugins/docker-buildx
+  - docker login -u ${DOCKER_USER} -p ${DOCKER_PWD}
+  - if [ "${TRAVIS_CPU_ARCH}" = "amd64" ]; then docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; fi
+  - docker buildx create --use
+  - docker buildx inspect --bootstrap
+  - git clone -b ${PYTORCH_OP_CODE_TAG} --depth 1 https://github.com/kubeflow/pytorch-operator.git
+  - git clone -b ${MPI_OP_CODE_TAG} --depth 1 https://github.com/kubeflow/mpi-operator.git
+  - git clone -b ${XGBOOST_OP_CODE_TAG} --depth 1 https://github.com/kubeflow/xgboost-operator.git
+  - git clone -b ${MXNET_OP_CODE_TAG} --depth 1 https://github.com/kubeflow/mxnet-operator.git
+  - git clone -b ${FATE_OP_CODE_TAG} --depth 1 https://github.com/kubeflow/fate-operator.git
+
+script:
+  - cd pytorch-operator
+  - docker buildx build --push --platform linux/amd64,linux/arm64 -t ${REPO_ORG}/pytorch-operator -f Dockerfile .
+  - cd ..
+  
+  - cd mpi-operator
+  - docker buildx build --push --platform linux/amd64,linux/arm64 -t ${REPO_ORG}/mpi-operator:${MPI_OP_CODE_TAG} -f Dockerfile .
+  - cd ..
+  
+  - cd xgboost-operator
+  - docker buildx build --push --platform linux/amd64,linux/arm64 -t ${REPO_ORG}/xgboost-operator:${XGBOOST_OP_CODE_TAG} -f Dockerfile .
+  - cd ..
+  
+  - cd mxnet-operator
+  - docker buildx build --push --platform linux/amd64,linux/arm64 -t ${REPO_ORG}/mxnet-operator:${MXNET_OP_CODE_TAG} -f Dockerfile .
+  - cd ..
+  
+  - cd fate-operator
+  - docker buildx build --push --platform linux/amd64,linux/arm64 -t ${REPO_ORG}/fate-operator -f Dockerfile .
+  - cd ..
